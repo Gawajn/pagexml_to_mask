@@ -90,7 +90,7 @@ class MaskGenerator:
         a = get_xml_regions(file, self.settings)
         mask_pil = page_region_to_mask(a, self.settings)
         filename_wo_ext = os.path.splitext(a.filename)[0]
-        mask_pil.save(output_dir + filename_wo_ext + '_mask.' + self.settings.MASK_EXTENSION)
+        mask_pil.save(output_dir + filename_wo_ext + '.mask.' + self.settings.MASK_EXTENSION)
 
 
 def string_to_lp(points: str):

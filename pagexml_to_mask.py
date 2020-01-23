@@ -31,6 +31,7 @@ class MaskSetting(NamedTuple):
     MASK_TYPE: MaskType = MaskType.ALLTYPES
     PCGTS_VERSION: PCGTSVersion = PCGTSVersion.PCGTS2017
     LINEWIDTH: int = 5
+    BASELINELENGTH: int = 20
 
 
 class PageXMLTypes(enum.Enum):
@@ -111,14 +112,14 @@ def get_xml_regions(xml_file, setting: MaskSetting) -> PageRegions:
     for child in root.findall('.//pcgts:TextRegion', namespaces):
         if setting.MASK_TYPE == setting.MASK_TYPE.TEXT_NONTEXT or setting.MASK_TYPE == setting.MASK_TYPE.ALLTYPES:
             coords = child.find('pcgts:Coords', namespaces)
-            if coords:
+            if coords is not None:
                 polyline = string_to_lp(coords.get('points'))
                 type = child.get('type') if 'type' in child.attrib else 'paragraph'
                 region_by_types.append(RegionType(polygon=polyline, type=PageXMLTypes(type)))
 
         if setting.MASK_TYPE == setting.MASK_TYPE.TEXT_LINE:
             for textline in child.findall('pcgts:TextLine', namespaces):
-                if textline:
+                if textline is not None:
                     coords = textline.find('pcgts:Coords', namespaces)
                     if coords is not None:
                         polyline = string_to_lp(coords.get('points'))
@@ -127,7 +128,7 @@ def get_xml_regions(xml_file, setting: MaskSetting) -> PageRegions:
 
         if setting.MASK_TYPE == setting.MASK_TYPE.BASE_LINE:
             for textline in child.findall('pcgts:TextLine', namespaces):
-                if textline:
+                if textline is not None:
                     baseline = textline.find('pcgts:Baseline', namespaces)
                     if baseline is not None:
                         polyline = string_to_lp(baseline.get('points'))
@@ -137,7 +138,7 @@ def get_xml_regions(xml_file, setting: MaskSetting) -> PageRegions:
     for child in root.findall('.//pcgts:ImageRegion', namespaces):
         if setting.MASK_TYPE == setting.MASK_TYPE.TEXT_NONTEXT or setting.MASK_TYPE == setting.MASK_TYPE.ALLTYPES:
             coords = child.find('pcgts:Coords', namespaces)
-            if coords:
+            if coords is not None:
                 polyline = string_to_lp(coords.get('points'))
                 region_by_types.append(RegionType(polygon=polyline, type=PageXMLTypes(PageXMLTypes('ImageRegion'))))
 
@@ -161,7 +162,44 @@ def page_region_to_mask(page_region: PageRegions, setting: MaskSetting) -> Image
                 ImageDraw.Draw(pil_image).polygon(x.polygon, outline=x.type.color_text_nontext(),
                                                   fill=x.type.color_text_nontext())
         elif setting.MASK_TYPE is MaskType.BASE_LINE:
-            ImageDraw.Draw(pil_image).line(x.polygon, fill=x.type.color_text_nontext(), width=5)
+            ImageDraw.Draw(pil_image).line(x.polygon, fill=x.type.color_text_nontext(), width=setting.LINEWIDTH)
+            if setting.BASELINELENGTH != 0:
+                from math import sqrt
+
+                def getPoint(p1, p2, length=20):
+                    x1, y1 = p1
+                    x2, y2 = p2
+
+                    x3 = x2 - x1
+                    y3 = y2 - y1
+
+                    mag = sqrt(x3 * x3 + y3 * y3)
+                    x3 = x3 / mag
+                    y3 = y3 / mag
+
+                    temp = x3
+                    x3 = -y3
+                    y3 = temp
+
+
+
+                    xl1 = x2 + x3 * length
+                    xl2 = x2 + x3 * -length
+
+                    yl1 = y2 + y3 * length
+                    yl2 = y2 + y3 * -length
+
+                    return (xl1, yl1), (xl2, yl2)
+
+                start, end = x.polygon[0], x.polygon[-1]
+
+                l1 = getPoint(x.polygon[-2], end)
+                l2 = getPoint(x.polygon[1], start)
+
+                ImageDraw.Draw(pil_image).line(l1, fill=x.type.IMAGE.color(), width=setting.LINEWIDTH)
+                ImageDraw.Draw(pil_image).line(l2, fill=x.type.IMAGE.color(), width=setting.LINEWIDTH)
+
+
         elif setting.MASK_TYPE is MaskType.TEXT_LINE:
             ImageDraw.Draw(pil_image).polygon(x.polygon, outline=x.type.color_text_nontext(),
                                               fill=x.type.color_text_nontext())
@@ -197,13 +235,17 @@ def main():
                         choices=['2017', '2013'],
                         help='PCGTS Version')
     parser.add_argument('--line_width', type=int, default=5, help='Width of the line to be drawn')
+    parser.add_argument('--baseline_length', type=int, default=20, help='Length of the line to be drawn at '
+                                                                        'the end of the baseline')
+
     args = parser.parse_args()
     pool = multiprocessing.Pool(int(args.processes))
     mask_gen = MaskGenerator(MaskSetting(MASK_TYPE=MaskType(args.setting), MASK_EXTENSION=args.mask_extension,
-                                         PCGTS_VERSION=PCGTSVersion(args.pcgts_version), LINEWIDTH=args.line_width))
+                                         PCGTS_VERSION=PCGTSVersion(args.pcgts_version), LINEWIDTH=args.line_width,
+                                         BASELINELENGTH=args.baseline_length))
     files = glob.glob(args.input_dir + '/*.xml')
     from itertools import product
-    pool.starmap(mask_gen.save, product(files,  [args.output_dir]))
+    pool.starmap(mask_gen.save, product(files, [args.output_dir]))
 
 
 if __name__ == '__main__':

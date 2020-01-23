@@ -193,8 +193,8 @@ def page_region_to_mask(page_region: PageRegions, setting: MaskSetting) -> Image
 
                 start, end = x.polygon[0], x.polygon[-1]
 
-                l1 = getPoint(x.polygon[-2], end)
-                l2 = getPoint(x.polygon[1], start)
+                l1 = getPoint(x.polygon[-2], end, setting.BASELINELENGTH)
+                l2 = getPoint(x.polygon[1], start, setting.BASELINELENGTH)
 
                 ImageDraw.Draw(pil_image).line(l1, fill=x.type.IMAGE.color(), width=setting.LINEWIDTH)
                 ImageDraw.Draw(pil_image).line(l2, fill=x.type.IMAGE.color(), width=setting.LINEWIDTH)
@@ -234,8 +234,8 @@ def main():
                         nargs='?',
                         choices=['2017', '2013'],
                         help='PCGTS Version')
-    parser.add_argument('--line_width', type=int, default=5, help='Width of the line to be drawn')
-    parser.add_argument('--baseline_length', type=int, default=20, help='Length of the line to be drawn at '
+    parser.add_argument('--line_width', type=int, default=7, help='Width of the line to be drawn')
+    parser.add_argument('--baseline_length', type=int, default=15, help='Length of the line to be drawn at '
                                                                         'the end of the baseline')
 
     args = parser.parse_args()

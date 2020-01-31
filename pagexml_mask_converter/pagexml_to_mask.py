@@ -90,8 +90,16 @@ class PageRegions(NamedTuple):
         return (np.array(self.image_size) * scale).astype(int)
 
 
-class MaskGenerator:
+from abc import ABC, abstractmethod
 
+
+class BaseMaskGenerator(ABC):
+    @abstractmethod
+    def get_mask(self, file):
+        pass
+
+
+class MaskGenerator(BaseMaskGenerator):
     def __init__(self, settings: MaskSetting):
         self.settings = settings
 

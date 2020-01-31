@@ -6,6 +6,7 @@ import glob
 import multiprocessing
 import argparse
 import os
+import numpy as np
 
 
 class MaskType(enum.Enum):
@@ -32,6 +33,7 @@ class MaskSetting(NamedTuple):
     PCGTS_VERSION: PCGTSVersion = PCGTSVersion.PCGTS2017
     LINEWIDTH: int = 5
     BASELINELENGTH: int = 20
+    SCALEFACTOR: float = 1.0
 
 
 class PageXMLTypes(enum.Enum):
@@ -75,11 +77,17 @@ class RegionType(NamedTuple):
     polygon: List[Tuple[int, int]]
     type: PageXMLTypes
 
+    def get_scaled_image_region(self, scale):
+        return (np.array(self.polygon) * scale).astype(int)
+
 
 class PageRegions(NamedTuple):
     image_size: Tuple[int, int]
     xml_regions: List[RegionType]
     filename: str
+
+    def get_scaled_image_size(self, scale):
+        return (np.array(self.image_size) * scale).astype(int)
 
 
 class MaskGenerator:
@@ -92,6 +100,11 @@ class MaskGenerator:
         mask_pil = page_region_to_mask(a, self.settings)
         filename_wo_ext = os.path.splitext(a.filename)[0]
         mask_pil.save(output_dir + filename_wo_ext + '.mask.' + self.settings.MASK_EXTENSION)
+
+    def get_mask(self, file):
+        a = get_xml_regions(file, self.settings)
+        mask_pil = page_region_to_mask(a, self.settings)
+        return np.array(mask_pil)
 
 
 def string_to_lp(points: str):
@@ -151,58 +164,62 @@ def get_xml_regions(xml_file, setting: MaskSetting) -> PageRegions:
 
 
 def page_region_to_mask(page_region: PageRegions, setting: MaskSetting) -> Image:
-    height, width = page_region.image_size
+    height, width = page_region.get_scaled_image_size(setting.SCALEFACTOR)
     pil_image = Image.new('RGB', (width, height), (255, 255, 255))
     for x in page_region.xml_regions:
+        polygon = x.get_scaled_image_region(setting.SCALEFACTOR)
         if setting.MASK_TYPE is MaskType.ALLTYPES:
-            if len(x.polygon) > 2:
-                ImageDraw.Draw(pil_image).polygon(x.polygon, outline=x.type.color(), fill=x.type.color())
+            if len(polygon) > 2:
+                ImageDraw.Draw(pil_image).polygon(polygon.flatten().tolist(), outline=x.type.color(), fill=x.type.color())
         elif setting.MASK_TYPE is MaskType.TEXT_NONTEXT:
-            if len(x.polygon) > 2:
-                ImageDraw.Draw(pil_image).polygon(x.polygon, outline=x.type.color_text_nontext(),
+            if len(polygon) > 2:
+                ImageDraw.Draw(pil_image).polygon(polygon.flatten().tolist(), outline=x.type.color_text_nontext(),
                                                   fill=x.type.color_text_nontext())
         elif setting.MASK_TYPE is MaskType.BASE_LINE:
-            ImageDraw.Draw(pil_image).line(x.polygon, fill=x.type.color_text_nontext(), width=setting.LINEWIDTH)
-            if setting.BASELINELENGTH != 0:
-                from math import sqrt
+            if len(polygon) > 2:
+                ImageDraw.Draw(pil_image).line(polygon.flatten().tolist(),
+                                               fill=x.type.color_text_nontext(),
+                                               width=setting.LINEWIDTH)
+                #from matplotlib import pyplot as plt
+                #plt.imshow(pil_image)
+                #plt.show()
+                if setting.BASELINELENGTH != 0:
+                    from math import sqrt
 
-                def getPoint(p1, p2, length=20):
-                    x1, y1 = p1
-                    x2, y2 = p2
+                    def getPoint(p1, p2, length=20):
+                        x1, y1 = p1
+                        x2, y2 = p2
 
-                    x3 = x2 - x1
-                    y3 = y2 - y1
+                        x3 = x2 - x1
+                        y3 = y2 - y1
 
-                    mag = sqrt(x3 * x3 + y3 * y3)
-                    x3 = x3 / mag
-                    y3 = y3 / mag
+                        mag = sqrt(x3 * x3 + y3 * y3)
+                        x3 = x3 / mag
+                        y3 = y3 / mag
 
-                    temp = x3
-                    x3 = -y3
-                    y3 = temp
+                        temp = x3
+                        x3 = -y3
+                        y3 = temp
 
+                        xl1 = x2 + x3 * length
+                        xl2 = x2 + x3 * -length
 
+                        yl1 = y2 + y3 * length
+                        yl2 = y2 + y3 * -length
 
-                    xl1 = x2 + x3 * length
-                    xl2 = x2 + x3 * -length
+                        return (xl1, yl1), (xl2, yl2)
 
-                    yl1 = y2 + y3 * length
-                    yl2 = y2 + y3 * -length
+                    start, end = polygon[0], polygon[-1]
+                    l1 = getPoint(polygon[-2], end, setting.BASELINELENGTH)
+                    l2 = getPoint(polygon[1], start, setting.BASELINELENGTH)
 
-                    return (xl1, yl1), (xl2, yl2)
-
-                start, end = x.polygon[0], x.polygon[-1]
-
-                l1 = getPoint(x.polygon[-2], end, setting.BASELINELENGTH)
-                l2 = getPoint(x.polygon[1], start, setting.BASELINELENGTH)
-
-                ImageDraw.Draw(pil_image).line(l1, fill=x.type.IMAGE.color(), width=setting.LINEWIDTH)
-                ImageDraw.Draw(pil_image).line(l2, fill=x.type.IMAGE.color(), width=setting.LINEWIDTH)
-
+                    ImageDraw.Draw(pil_image).line(l1, fill=x.type.IMAGE.color(), width=setting.LINEWIDTH)
+                    ImageDraw.Draw(pil_image).line(l2, fill=x.type.IMAGE.color(), width=setting.LINEWIDTH)
 
         elif setting.MASK_TYPE is MaskType.TEXT_LINE:
-            ImageDraw.Draw(pil_image).polygon(x.polygon, outline=x.type.color_text_nontext(),
-                                              fill=x.type.color_text_nontext())
+            if len(polygon) > 2:
+                ImageDraw.Draw(pil_image).polygon(polygon.flatten().tolist(), outline=x.type.color_text_nontext(),
+                                                  fill=x.type.color_text_nontext())
 
     return pil_image
 
@@ -237,12 +254,13 @@ def main():
     parser.add_argument('--line_width', type=int, default=7, help='Width of the line to be drawn')
     parser.add_argument('--baseline_length', type=int, default=15, help='Length of the line to be drawn at '
                                                                         'the end of the baseline')
+    parser.add_argument('--scale', type=float, default=1.0, help='Scalefactor')
 
     args = parser.parse_args()
     pool = multiprocessing.Pool(int(args.processes))
     mask_gen = MaskGenerator(MaskSetting(MASK_TYPE=MaskType(args.setting), MASK_EXTENSION=args.mask_extension,
                                          PCGTS_VERSION=PCGTSVersion(args.pcgts_version), LINEWIDTH=args.line_width,
-                                         BASELINELENGTH=args.baseline_length))
+                                         BASELINELENGTH=args.baseline_length, SCALEFACTOR=args.scale))
     files = glob.glob(args.input_dir + '/*.xml')
     from itertools import product
     pool.starmap(mask_gen.save, product(files, [args.output_dir]))

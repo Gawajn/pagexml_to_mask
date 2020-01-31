@@ -176,14 +176,14 @@ def page_region_to_mask(page_region: PageRegions, setting: MaskSetting, scale: f
     for x in page_region.xml_regions:
         polygon = x.get_scaled_image_region(scale)
         if setting.MASK_TYPE is MaskType.ALLTYPES:
-            if len(polygon) > 2:
+            if len(polygon) >= 2:
                 ImageDraw.Draw(pil_image).polygon(polygon.flatten().tolist(), outline=x.type.color(), fill=x.type.color())
         elif setting.MASK_TYPE is MaskType.TEXT_NONTEXT:
-            if len(polygon) > 2:
+            if len(polygon) >= 2:
                 ImageDraw.Draw(pil_image).polygon(polygon.flatten().tolist(), outline=x.type.color_text_nontext(),
                                                   fill=x.type.color_text_nontext())
         elif setting.MASK_TYPE is MaskType.BASE_LINE:
-            if len(polygon) > 2:
+            if len(polygon) >= 2:
                 ImageDraw.Draw(pil_image).line(polygon.flatten().tolist(),
                                                fill=x.type.color_text_nontext(),
                                                width=setting.LINEWIDTH)
@@ -224,7 +224,7 @@ def page_region_to_mask(page_region: PageRegions, setting: MaskSetting, scale: f
                     ImageDraw.Draw(pil_image).line(l2, fill=x.type.IMAGE.color(), width=setting.LINEWIDTH)
 
         elif setting.MASK_TYPE is MaskType.TEXT_LINE:
-            if len(polygon) > 2:
+            if len(polygon) >= 2:
                 ImageDraw.Draw(pil_image).polygon(polygon.flatten().tolist(), outline=x.type.color_text_nontext(),
                                                   fill=x.type.color_text_nontext())
 

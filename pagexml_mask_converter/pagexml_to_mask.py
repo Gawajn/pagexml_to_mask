@@ -94,7 +94,7 @@ from abc import ABC, abstractmethod
 
 class BaseMaskGenerator(ABC):
     @abstractmethod
-    def get_mask(self, file):
+    def get_mask(self, file, scale:float = 1.0):
         pass
 
 

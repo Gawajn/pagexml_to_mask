@@ -33,7 +33,6 @@ class MaskSetting(NamedTuple):
     PCGTS_VERSION: PCGTSVersion = PCGTSVersion.PCGTS2017
     LINEWIDTH: int = 5
     BASELINELENGTH: int = 20
-    SCALEFACTOR: float = 1.0
 
 
 class PageXMLTypes(enum.Enum):
@@ -109,9 +108,9 @@ class MaskGenerator(BaseMaskGenerator):
         filename_wo_ext = os.path.splitext(a.filename)[0]
         mask_pil.save(output_dir + filename_wo_ext + '.mask.' + self.settings.MASK_EXTENSION)
 
-    def get_mask(self, file):
+    def get_mask(self, file, scale=1.0):
         a = get_xml_regions(file, self.settings)
-        mask_pil = page_region_to_mask(a, self.settings)
+        mask_pil = page_region_to_mask(a, self.settings, scale=scale)
         return np.array(mask_pil)
 
 
@@ -171,11 +170,11 @@ def get_xml_regions(xml_file, setting: MaskSetting) -> PageRegions:
     return PageRegions(image_size=(int(page_height), int(page_width)), xml_regions=region_by_types, filename=f_name)
 
 
-def page_region_to_mask(page_region: PageRegions, setting: MaskSetting) -> Image:
-    height, width = page_region.get_scaled_image_size(setting.SCALEFACTOR)
+def page_region_to_mask(page_region: PageRegions, setting: MaskSetting, scale: float = 1.0) -> Image:
+    height, width = page_region.get_scaled_image_size(scale)
     pil_image = Image.new('RGB', (width, height), (255, 255, 255))
     for x in page_region.xml_regions:
-        polygon = x.get_scaled_image_region(setting.SCALEFACTOR)
+        polygon = x.get_scaled_image_region(scale)
         if setting.MASK_TYPE is MaskType.ALLTYPES:
             if len(polygon) > 2:
                 ImageDraw.Draw(pil_image).polygon(polygon.flatten().tolist(), outline=x.type.color(), fill=x.type.color())
@@ -268,7 +267,7 @@ def main():
     pool = multiprocessing.Pool(int(args.processes))
     mask_gen = MaskGenerator(MaskSetting(MASK_TYPE=MaskType(args.setting), MASK_EXTENSION=args.mask_extension,
                                          PCGTS_VERSION=PCGTSVersion(args.pcgts_version), LINEWIDTH=args.line_width,
-                                         BASELINELENGTH=args.baseline_length, SCALEFACTOR=args.scale))
+                                         BASELINELENGTH=args.baseline_length))
     files = glob.glob(args.input_dir + '/*.xml')
     from itertools import product
     pool.starmap(mask_gen.save, product(files, [args.output_dir]))

@@ -8,17 +8,24 @@ import argparse
 import os
 import numpy as np
 
+from pagexml_mask_converter.data import PageXMLRegionType
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 class MaskType(enum.Enum):
     ALLTYPES = 'all_types'
-    TEXT_NONTEXT = 'text_nontext'
+    TEXT_NONTEXT = 'text_non_text'
     BASE_LINE = 'baseline'
-    TEXT_LINE = 'textline'
+    TEXT_LINE = 'text_line'
 
 
 class PCGTSVersion(enum.Enum):
     PCGTS2017 = '2017'
     PCGTS2013 = '2013'
+    PCGTS2019 = '2019'
+    PCGTS2019S = '2019s'
     PCGTS2013S = '2013s'
     PCGTS2017S = '2017s'
 
@@ -26,8 +33,11 @@ class PCGTSVersion(enum.Enum):
         return {
             PCGTSVersion.PCGTS2017: 'http://schema.primaresearch.org/PAGE/gts/pagecontent/2017-07-15',
             PCGTSVersion.PCGTS2013: 'http://schema.primaresearch.org/PAGE/gts/pagecontent/2013-07-15',
+            PCGTSVersion.PCGTS2019: 'http://schema.primaresearch.org/PAGE/gts/pagecontent/2019-07-15',
+
             PCGTSVersion.PCGTS2013S: 'https://schema.primaresearch.org/PAGE/gts/pagecontent/2013-07-15',
             PCGTSVersion.PCGTS2017S: 'https://schema.primaresearch.org/PAGE/gts/pagecontent/2017-07-15',
+            PCGTSVersion.PCGTS2019S: 'https://schema.primaresearch.org/PAGE/gts/pagecontent/2019-07-15',
         }[self]
 
 
@@ -39,46 +49,10 @@ class MaskSetting(NamedTuple):
     BASELINELENGTH: int = 20
 
 
-class PageXMLTypes(enum.Enum):
-    PARAGRAPH = 'paragraph'
-    IMAGE = 'ImageRegion'
-    HEADING = 'heading'
-    HEADER = 'header'
-    CATCH_WORD = 'catch-word'
-    PAGE_NUMBER = 'page-number'
-    SIGNATURE_MARK = 'signature-mark'
-    MARGINALIA = 'marginalia'
-    OTHER = 'other'
-    DROP_CAPITAL = 'drop-capital'
-    FLOATING = 'floating'
-    CAPTION = 'caption'
-    ENDNOTE = 'endnote'
-
-    def color(self):
-        return {
-            PageXMLTypes.PARAGRAPH: (255, 0, 0),
-            PageXMLTypes.IMAGE: (0, 255, 0),
-            PageXMLTypes.HEADING: (0, 0, 255),
-            PageXMLTypes.HEADER: (0, 255, 255),
-            PageXMLTypes.CATCH_WORD: (255, 255, 0),
-            PageXMLTypes.PAGE_NUMBER: (255, 0, 255),
-            PageXMLTypes.SIGNATURE_MARK: (128, 0, 128),
-            PageXMLTypes.MARGINALIA: (128, 128, 0),
-            PageXMLTypes.OTHER: (0, 128, 128),
-            PageXMLTypes.DROP_CAPITAL: (255, 128, 0),
-            PageXMLTypes.FLOATING: (255, 0, 128),
-            PageXMLTypes.CAPTION: (128, 255, 0),
-            PageXMLTypes.ENDNOTE: (0, 255, 128),
-
-        }[self]
-
-    def color_text_nontext(self):
-        return (0, 255, 0) if self.value is PageXMLTypes.IMAGE.value else (255, 0, 0)
-
-
 class RegionType(NamedTuple):
     polygon: List[Tuple[int, int]]
-    type: PageXMLTypes
+    region: str
+    r_type: str
 
     def get_scaled_image_region(self, scale):
         return (np.array(self.polygon) * scale).astype(int)
@@ -108,6 +82,7 @@ class MaskGenerator(BaseMaskGenerator):
         self.xml_namespace = self.settings.PCGTS_VERSION.get_namespace()
 
     def save(self, file, output_dir):
+        logger.info("Processing: {}".format(file))
         a = self.get_xml_regions(file, self.settings)
         mask_pil = page_region_to_mask(a, self.settings)
         filename_wo_ext = os.path.splitext(a.filename)[0]
@@ -137,41 +112,50 @@ class MaskGenerator(BaseMaskGenerator):
 
         page_height = page.get('imageHeight')
         page_width = page.get('imageWidth')
-        f_name = page.get('imageFilename')
+        xml_f_name = page.get('imageFilename')
+        f_name = os.path.splitext(os.path.basename(xml_file))[0]
+        xml_f_name = os.path.splitext(os.path.basename(xml_f_name))[0]
+        if f_name != xml_f_name:
+            logger.info("Basename of file: {} is different than XML Filename: {}".format(f_name, xml_f_name))
+        regions = []
+        for x in page:
+            region = x.tag.split("}")[-1]
+            regions.append(region)
+            if region not in PageXMLRegionType.get_region_types():
+                logger.warning("{} Not defined. Skipping Region Type".format(region))
+        for region in regions:
+            for child in root.findall('.//pcgts:' + region, namespaces):
+                if setting.MASK_TYPE == setting.MASK_TYPE.TEXT_NONTEXT or setting.MASK_TYPE == \
+                        setting.MASK_TYPE.ALLTYPES:
+                    coords = child.find('pcgts:Coords', namespaces)
+                    if coords is not None:
+                        polyline = string_to_lp(coords.get('points'))
+                        xml_type = child.get('type')
+                        region_by_types.append(RegionType(polygon=polyline,
+                                                          region=region,
+                                                          r_type=xml_type))
 
-        for child in root.findall('.//pcgts:TextRegion', namespaces):
-            if setting.MASK_TYPE == setting.MASK_TYPE.TEXT_NONTEXT or setting.MASK_TYPE == setting.MASK_TYPE.ALLTYPES:
-                coords = child.find('pcgts:Coords', namespaces)
-                if coords is not None:
-                    polyline = string_to_lp(coords.get('points'))
-                    type = child.get('type') if 'type' in child.attrib else 'paragraph'
-                    region_by_types.append(RegionType(polygon=polyline, type=PageXMLTypes(type)))
+                if setting.MASK_TYPE == setting.MASK_TYPE.TEXT_LINE:
+                    for textline in child.findall('pcgts:TextLine', namespaces):
+                        if textline is not None:
+                            coords = textline.find('pcgts:Coords', namespaces)
+                            if coords is not None:
+                                polyline = string_to_lp(coords.get('points'))
+                                xml_type = child.get('type')
+                                region_by_types.append(RegionType(polygon=polyline,
+                                                                  region=region,
+                                                                  r_type=xml_type))
 
-            if setting.MASK_TYPE == setting.MASK_TYPE.TEXT_LINE:
-                for textline in child.findall('pcgts:TextLine', namespaces):
-                    if textline is not None:
-                        coords = textline.find('pcgts:Coords', namespaces)
-                        if coords is not None:
-                            polyline = string_to_lp(coords.get('points'))
-                            type = child.get('type') if 'type' in child.attrib else 'paragraph'
-                            region_by_types.append(RegionType(polygon=polyline, type=PageXMLTypes(type)))
-
-            if setting.MASK_TYPE == setting.MASK_TYPE.BASE_LINE:
-                for textline in child.findall('pcgts:TextLine', namespaces):
-                    if textline is not None:
-                        baseline = textline.find('pcgts:Baseline', namespaces)
-                        if baseline is not None:
-                            polyline = string_to_lp(baseline.get('points'))
-                            type = child.get('type') if 'type' in child.attrib else 'paragraph'
-                            region_by_types.append(RegionType(polygon=polyline, type=PageXMLTypes(type)))
-
-        for child in root.findall('.//pcgts:ImageRegion', namespaces):
-            if setting.MASK_TYPE == setting.MASK_TYPE.TEXT_NONTEXT or setting.MASK_TYPE == setting.MASK_TYPE.ALLTYPES:
-                coords = child.find('pcgts:Coords', namespaces)
-                if coords is not None:
-                    polyline = string_to_lp(coords.get('points'))
-                    region_by_types.append(RegionType(polygon=polyline, type=PageXMLTypes(PageXMLTypes('ImageRegion'))))
-
+                if setting.MASK_TYPE == setting.MASK_TYPE.BASE_LINE:
+                    for textline in child.findall('pcgts:TextLine', namespaces):
+                        if textline is not None:
+                            baseline = textline.find('pcgts:Baseline', namespaces)
+                            if baseline is not None:
+                                polyline = string_to_lp(baseline.get('points'))
+                                xml_type = child.get('type')
+                                region_by_types.append(RegionType(polygon=polyline,
+                                                                  region=region,
+                                                                  r_type=xml_type))
         return PageRegions(image_size=(int(page_height), int(page_width)), xml_regions=region_by_types, filename=f_name)
 
 
@@ -191,16 +175,23 @@ def page_region_to_mask(page_region: PageRegions, setting: MaskSetting, scale: f
         polygon = x.get_scaled_image_region(scale)
         if setting.MASK_TYPE is MaskType.ALLTYPES:
             if len(polygon) >= 2:
-                ImageDraw.Draw(pil_image).polygon(polygon.flatten().tolist(), outline=x.type.color(),
-                                                  fill=x.type.color())
+                print(PageXMLRegionType(x.region).get_region_type_color(x.r_type))
+
+                ImageDraw.Draw(pil_image).polygon(polygon.flatten().tolist(),
+                                                  outline=PageXMLRegionType(x.region).get_region_type_color(x.r_type),
+                                                  fill=PageXMLRegionType(x.region).get_region_type_color(x.r_type))
         elif setting.MASK_TYPE is MaskType.TEXT_NONTEXT:
             if len(polygon) >= 2:
-                ImageDraw.Draw(pil_image).polygon(polygon.flatten().tolist(), outline=x.type.color_text_nontext(),
-                                                  fill=x.type.color_text_nontext())
+                ImageDraw.Draw(pil_image).polygon(polygon.flatten().tolist(),
+                                                  outline=PageXMLRegionType(x.region).
+                                                  get_region_type_color(x.r_type, color_text_non_text=True),
+                                                  fill=PageXMLRegionType(x.region).
+                                                  get_region_type_color(x.r_type, color_text_non_text=True)),
         elif setting.MASK_TYPE is MaskType.BASE_LINE:
             if len(polygon) >= 2:
                 ImageDraw.Draw(pil_image).line(polygon.flatten().tolist(),
-                                               fill=x.type.color_text_nontext(),
+                                               fill=PageXMLRegionType("TextRegion").get_region_type_color(None,
+                                                                                                          color_text_non_text=True),
                                                width=setting.LINEWIDTH)
                 # from matplotlib import pyplot as plt
                 # plt.imshow(pil_image)
@@ -235,13 +226,22 @@ def page_region_to_mask(page_region: PageRegions, setting: MaskSetting, scale: f
                     l1 = getPoint(polygon[-2], end, setting.BASELINELENGTH)
                     l2 = getPoint(polygon[1], start, setting.BASELINELENGTH)
 
-                    ImageDraw.Draw(pil_image).line(l1, fill=x.type.IMAGE.color(), width=setting.LINEWIDTH)
-                    ImageDraw.Draw(pil_image).line(l2, fill=x.type.IMAGE.color(), width=setting.LINEWIDTH)
+                    ImageDraw.Draw(pil_image).line(l1,
+                                                   fill=PageXMLRegionType("GraphicRegion").
+                                                   get_region_type_color(None,
+                                                                         color_text_non_text=True),
+                                                   width=setting.LINEWIDTH)
+                    ImageDraw.Draw(pil_image).line(l2,
+                                                   fill=PageXMLRegionType("GraphicRegion").
+                                                   get_region_type_color(None,
+                                                                         color_text_non_text=True),
+                                                   width=setting.LINEWIDTH)
 
         elif setting.MASK_TYPE is MaskType.TEXT_LINE:
             if len(polygon) >= 2:
-                ImageDraw.Draw(pil_image).polygon(polygon.flatten().tolist(), outline=x.type.color_text_nontext(),
-                                                  fill=x.type.color_text_nontext())
+                ImageDraw.Draw(pil_image).polygon(polygon.flatten().tolist(),
+                                                  outline=PageXMLRegionType(x.region).get_region_type_color(x.r_type),
+                                                  fill=PageXMLRegionType(x.region).get_region_type_color(x.r_type))
 
     return pil_image
 
@@ -258,7 +258,7 @@ def main():
                         default='all_types',
                         const='all_types',
                         nargs='?',
-                        choices=['all_types', 'text_nontext', 'baseline', 'textline'],
+                        choices=['all_types', 'text_non_text', 'baseline', 'text_line'],
                         help='Settings for the mask generation (default: %(default)s)')
     parser.add_argument('--mask_extension',
                         default='png',
@@ -271,7 +271,7 @@ def main():
                         default='2017',
                         const='2017',
                         nargs='?',
-                        choices=['2017', '2013'],
+                        choices=['2017', '2013', '2019'],
                         help='PCGTS Version')
     parser.add_argument('--line_width', type=int, default=7, help='Width of the line to be drawn')
     parser.add_argument('--baseline_length', type=int, default=15, help='Length of the line to be drawn at '
@@ -283,7 +283,7 @@ def main():
     mask_gen = MaskGenerator(MaskSetting(MASK_TYPE=MaskType(args.setting), MASK_EXTENSION=args.mask_extension,
                                          PCGTS_VERSION=PCGTSVersion(args.pcgts_version), LINEWIDTH=args.line_width,
                                          BASELINELENGTH=args.baseline_length))
-    files = glob.glob(args.input_dir + '/*.xml')
+    files = glob.glob(args.input_dir)
     from itertools import product
     pool.starmap(mask_gen.save, product(files, [args.output_dir]))
 

@@ -15,7 +15,6 @@ class RegionColor:
 
 class TextPageXMLTypes(enum.Enum):
     PARAGRAPH = 'paragraph'
-    IMAGE = 'ImageRegion'
     HEADING = 'heading'
     HEADER = 'header'
     CATCH_WORD = 'catch-word'
@@ -118,6 +117,30 @@ class PageXMLRegionType(enum.Enum):
             if att_type is not None:
                 logger.warning("{} not known for region {}. Using default value of region".format(att_type, self.value))
             return self.region_color().color if color_text_non_text is False else self.region_color().text_non_text_color
+
+    @staticmethod
+    def to_dict(color_text_non_text=False, regions_only=False):
+        color_dict = {}
+        for x in PageXMLRegionType:
+            att_dict = {}
+            if color_text_non_text:
+                att_dict["default_color"] = PageXMLRegionType(x).region_color().text_non_text_color
+            else:
+                att_dict["default_color"] = PageXMLRegionType(x).region_color().color
+
+            att_colors = {}
+            try:
+                for t in PageXMLRegionType(x).get_attribute_class_of_region():
+                    if color_text_non_text:
+                        att_colors[t.value] = PageXMLRegionType(x) \
+                            .get_attribute_class_of_region()(t).color().text_non_text_color
+                    else:
+                        att_colors[t.value] = PageXMLRegionType(x).get_attribute_class_of_region()(t).color().color
+            except:
+                pass
+            att_dict["region_type_colors"] = att_colors
+            color_dict[x.value] = att_dict
+        return color_dict
 
 
 class RegionAttributes(ABC):

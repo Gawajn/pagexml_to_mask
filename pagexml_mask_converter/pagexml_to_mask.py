@@ -1,4 +1,5 @@
 import enum
+import json
 import xml.etree.ElementTree as ET
 from typing import NamedTuple, List, Tuple
 from PIL import Image, ImageDraw
@@ -7,6 +8,7 @@ import multiprocessing
 import argparse
 import os
 import numpy as np
+from dataclasses import dataclass
 
 from pagexml_mask_converter.data import PageXMLRegionType
 import logging
@@ -41,12 +43,28 @@ class PCGTSVersion(enum.Enum):
         }[self]
 
 
-class MaskSetting(NamedTuple):
+@dataclass
+class MaskSetting():
     MASK_EXTENSION: str = 'png'
     MASK_TYPE: MaskType = MaskType.ALLTYPES
     PCGTS_VERSION: PCGTSVersion = PCGTSVersion.PCGTS2017
     LINEWIDTH: int = 5
     BASELINELENGTH: int = 20
+    SETTING_OUTPUT: bool = False
+
+    def to_dict(self):
+        json_dict = {}
+        for x in list(self.__dict__.keys()):
+            # if x == "DECODER_CHANNELS":
+            #    print(x)
+            if x in ['PSEUDO_DATASET', 'CUSTOM_MODEL', 'TRAIN_DATASET', 'VAL_DATASET']:
+                continue
+            else:
+                if isinstance(self.__dict__[x], enum.Enum):
+                    json_dict[x] = self.__dict__[x].value
+                    continue
+                json_dict[x] = self.__dict__[x]
+        return json_dict
 
 
 class RegionType(NamedTuple):
@@ -277,6 +295,7 @@ def main():
     parser.add_argument('--baseline_length', type=int, default=15, help='Length of the line to be drawn at '
                                                                         'the end of the baseline')
     parser.add_argument('--scale', type=float, default=1.0, help='Scalefactor')
+    parser.add_argument('--setting_output', action="store_true")
 
     args = parser.parse_args()
     pool = multiprocessing.Pool(int(args.processes))
@@ -284,6 +303,16 @@ def main():
                                          PCGTS_VERSION=PCGTSVersion(args.pcgts_version), LINEWIDTH=args.line_width,
                                          BASELINELENGTH=args.baseline_length))
     files = glob.glob(args.input_dir)
+    from pagexml_mask_converter.data import PageXMLRegionType
+    if args.setting_output:
+        t_nt = False if mask_gen.settings.MASK_TYPE is MaskType.ALLTYPES else True
+        color_dict = PageXMLRegionType.to_dict(color_text_non_text=t_nt)
+        setting_dict = mask_gen.settings.to_dict()
+        _comp = {**setting_dict, **{'Color_Map': color_dict}}
+        t = json.dumps(_comp, indent=4)
+        with open(os.path.join(args.output_dir, "mask_setting.json"), "w") as file_to_write:
+            file_to_write.write(t)
+
     from itertools import product
     pool.starmap(mask_gen.save, product(files, [args.output_dir]))
 

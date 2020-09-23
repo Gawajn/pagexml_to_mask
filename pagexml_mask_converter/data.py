@@ -32,21 +32,21 @@ class TextPageXMLTypes(enum.Enum):
 
     def color(self):
         return {
-            TextPageXMLTypes.PARAGRAPH: RegionColor((255, 128, 0), (255, 0, 0)),
-            TextPageXMLTypes.HEADING: RegionColor((255, 128, 128), (255, 0, 0)),
-            TextPageXMLTypes.HEADER: RegionColor((255, 64, 128), (255, 0, 0)),
-            TextPageXMLTypes.CATCH_WORD: RegionColor((255, 128, 64), (255, 0, 0)),
-            TextPageXMLTypes.PAGE_NUMBER: RegionColor((255, 32, 128), (255, 0, 0)),
-            TextPageXMLTypes.SIGNATURE_MARK: RegionColor((255, 128, 32), (255, 0, 0)),
-            TextPageXMLTypes.MARGINALIA: RegionColor((255, 64, 32), (255, 0, 0)),
-            TextPageXMLTypes.OTHER: RegionColor((255, 32, 64), (255, 0, 0)),
-            TextPageXMLTypes.DROP_CAPITAL: RegionColor((255, 64, 64), (0, 255, 0)),
-            TextPageXMLTypes.FLOATING: RegionColor((255, 0, 128), (255, 0, 0)),
-            TextPageXMLTypes.CAPTION: RegionColor((255, 64, 0), (255, 0, 0)),
-            TextPageXMLTypes.ENDNOTE: RegionColor((255, 0, 64), (255, 0, 0)),
-            TextPageXMLTypes.FOOTNOTE: RegionColor((255, 32, 0), (255, 0, 0)),
-            TextPageXMLTypes.FOOTNOTE_CONTINUED: RegionColor((255, 0, 32), (255, 0, 0)),
-            TextPageXMLTypes.FOOTER: RegionColor((255, 32, 32), (255, 0, 0)),
+            TextPageXMLTypes.PARAGRAPH: RegionColor((85, 107, 47), (255, 0, 0)),
+            TextPageXMLTypes.HEADING: RegionColor((128, 0, 0), (255, 0, 0)),
+            TextPageXMLTypes.HEADER: RegionColor((72, 61, 139), (255, 0, 0)),
+            TextPageXMLTypes.CATCH_WORD: RegionColor((119, 136, 153), (255, 0, 0)),
+            TextPageXMLTypes.PAGE_NUMBER: RegionColor((0, 128, 0), (255, 0, 0)),
+            TextPageXMLTypes.SIGNATURE_MARK: RegionColor((60, 179, 113), (255, 0, 0)),
+            TextPageXMLTypes.MARGINALIA: RegionColor((184, 134, 11), (255, 0, 0)),
+            TextPageXMLTypes.OTHER: RegionColor((32, 178, 170), (255, 0, 0)),
+            TextPageXMLTypes.DROP_CAPITAL: RegionColor((0, 0, 139), (0, 255, 0)),
+            TextPageXMLTypes.FLOATING: RegionColor((50, 205, 50), (255, 0, 0)),
+            TextPageXMLTypes.CAPTION: RegionColor((139, 0, 139), (255, 0, 0)),
+            TextPageXMLTypes.ENDNOTE: RegionColor((176, 48, 96), (255, 0, 0)),
+            TextPageXMLTypes.FOOTNOTE: RegionColor((210, 180, 140), (255, 0, 0)),
+            TextPageXMLTypes.FOOTNOTE_CONTINUED: RegionColor((255, 69, 0), (255, 0, 0)),
+            TextPageXMLTypes.FOOTER: RegionColor((255, 140, 0), (255, 0, 0)),
 
         }[self]
 
@@ -60,11 +60,11 @@ class GraphicRegionPageXMLTypes(enum.Enum):
 
     def color(self):
         return {
-            GraphicRegionPageXMLTypes.STAMP: RegionColor((128, 0, 255), (0, 255, 0)),
-            GraphicRegionPageXMLTypes.HANDWRITTEN_ANNOTATION: RegionColor((0, 128, 255), (255, 0, 0)),
-            GraphicRegionPageXMLTypes.DECORATION: RegionColor((128, 0, 255), (0, 255, 0)),
-            GraphicRegionPageXMLTypes.BARCODE: RegionColor((128, 128, 255), (0, 255, 0)),
-            GraphicRegionPageXMLTypes.OTHER: RegionColor((128, 64, 255), (0, 255, 0)),
+            GraphicRegionPageXMLTypes.STAMP: RegionColor((0, 255, 0), (0, 255, 0)),
+            GraphicRegionPageXMLTypes.HANDWRITTEN_ANNOTATION: RegionColor((148, 0, 211), (255, 0, 0)),
+            GraphicRegionPageXMLTypes.DECORATION: RegionColor((0, 250, 154), (0, 255, 0)),
+            GraphicRegionPageXMLTypes.BARCODE: RegionColor((220, 20, 60), (0, 255, 0)),
+            GraphicRegionPageXMLTypes.OTHER: RegionColor((0, 191, 255), (0, 255, 0)),
         }[self]
 
 
@@ -94,18 +94,18 @@ class PageXMLRegionType(enum.Enum):
 
     def region_color(self):
         return {
-            PageXMLRegionType.TEXTREGION: RegionColor((255, 0, 0), (255, 0, 0)),
-            PageXMLRegionType.IMAGEREGION: RegionColor((0, 255, 0), (0, 255, 0)),
-            PageXMLRegionType.GRAPHICREGION: RegionColor((0, 0, 255), (0, 255, 0)),
-            PageXMLRegionType.SEPERATORREGION: RegionColor((255, 255, 0), (0, 255, 0)),
+            PageXMLRegionType.TEXTREGION: RegionColor((0, 0, 255), (255, 0, 0)),
+            PageXMLRegionType.IMAGEREGION: RegionColor((173, 255, 47), (0, 255, 0)),
+            PageXMLRegionType.GRAPHICREGION: RegionColor((255, 0, 255), (0, 255, 0)),
+            PageXMLRegionType.SEPERATORREGION: RegionColor((250, 128, 114), (0, 255, 0)),
             PageXMLRegionType.READINGORDER: RegionColor(None, None),
             PageXMLRegionType.BORDER: RegionColor((255, 255, 255), (255, 255, 255)),
-            PageXMLRegionType.MATHSREGION: RegionColor((128, 255, 255), (0, 255, 0)),
-            PageXMLRegionType.TABLEREGION: RegionColor((64, 255, 255), (0, 255, 0)),
-            PageXMLRegionType.RELATIONS: RegionColor((64, 255, 255), (0, 255, 0)),
+            PageXMLRegionType.MATHSREGION: RegionColor((255, 255, 84), (0, 255, 0)),
+            PageXMLRegionType.TABLEREGION: RegionColor((100, 149, 237), (0, 255, 0)),
+            PageXMLRegionType.RELATIONS: RegionColor((176, 224, 230), (0, 255, 0)),
             PageXMLRegionType.PRINTSPACE: RegionColor((255, 255, 255), (255, 255, 255)),
-            PageXMLRegionType.MUSICREGION: RegionColor((32, 255, 255), (0, 255, 0)),
-            PageXMLRegionType.NOISEREGION: RegionColor((255, 32, 255), (0, 255, 0)),
+            PageXMLRegionType.MUSICREGION: RegionColor((123, 104, 238), (0, 255, 0)),
+            PageXMLRegionType.NOISEREGION: RegionColor((238, 130, 238), (0, 255, 0)),
 
         }[self]
 

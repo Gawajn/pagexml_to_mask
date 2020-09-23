@@ -193,8 +193,6 @@ def page_region_to_mask(page_region: PageRegions, setting: MaskSetting, scale: f
         polygon = x.get_scaled_image_region(scale)
         if setting.MASK_TYPE is MaskType.ALLTYPES:
             if len(polygon) >= 2:
-                print(PageXMLRegionType(x.region).get_region_type_color(x.r_type))
-
                 ImageDraw.Draw(pil_image).polygon(polygon.flatten().tolist(),
                                                   outline=PageXMLRegionType(x.region).get_region_type_color(x.r_type),
                                                   fill=PageXMLRegionType(x.region).get_region_type_color(x.r_type))
@@ -208,12 +206,9 @@ def page_region_to_mask(page_region: PageRegions, setting: MaskSetting, scale: f
         elif setting.MASK_TYPE is MaskType.BASE_LINE:
             if len(polygon) >= 2:
                 ImageDraw.Draw(pil_image).line(polygon.flatten().tolist(),
-                                               fill=PageXMLRegionType("TextRegion").get_region_type_color(None,
-                                                                                                          color_text_non_text=True),
+                                               fill=PageXMLRegionType("TextRegion").
+                                               get_region_type_color(None, color_text_non_text=True),
                                                width=setting.LINEWIDTH)
-                # from matplotlib import pyplot as plt
-                # plt.imshow(pil_image)
-                # plt.show()
                 if setting.BASELINELENGTH != 0:
                     from math import sqrt
 
@@ -296,7 +291,7 @@ def main():
                                                                         'the end of the baseline')
     parser.add_argument('--scale', type=float, default=1.0, help='Scalefactor')
     parser.add_argument('--setting_output', action="store_true")
-
+    parser.add_argument('--color_legend', action="store_true")
     args = parser.parse_args()
     pool = multiprocessing.Pool(int(args.processes))
     mask_gen = MaskGenerator(MaskSetting(MASK_TYPE=MaskType(args.setting), MASK_EXTENSION=args.mask_extension,
@@ -304,14 +299,19 @@ def main():
                                          BASELINELENGTH=args.baseline_length))
     files = glob.glob(args.input_dir)
     from pagexml_mask_converter.data import PageXMLRegionType
-    if args.setting_output:
+    if args.setting_output or args.color_legend:
         t_nt = False if mask_gen.settings.MASK_TYPE is MaskType.ALLTYPES else True
         color_dict = PageXMLRegionType.to_dict(color_text_non_text=t_nt)
         setting_dict = mask_gen.settings.to_dict()
         _comp = {**setting_dict, **{'Color_Map': color_dict}}
         t = json.dumps(_comp, indent=4)
-        with open(os.path.join(args.output_dir, "mask_setting.json"), "w") as file_to_write:
-            file_to_write.write(t)
+        from pagexml_mask_converter.color_legend import color_legend
+        if args.setting_output:
+            with open(os.path.join(args.output_dir, "mask_setting.json"), "w") as file_to_write:
+                file_to_write.write(t)
+        if args.color_legend:
+            image = color_legend(t)
+            image.save(os.path.join(args.output_dir, "image_palette.png"))
 
     from itertools import product
     pool.starmap(mask_gen.save, product(files, [args.output_dir]))

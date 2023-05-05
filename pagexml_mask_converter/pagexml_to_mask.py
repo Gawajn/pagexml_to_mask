@@ -135,45 +135,43 @@ class MaskGenerator(BaseMaskGenerator):
         xml_f_name = os.path.splitext(os.path.basename(xml_f_name))[0]
         if f_name != xml_f_name:
             logger.info("Basename of file: {} is different than XML Filename: {}".format(f_name, xml_f_name))
-        regions = []
-        for x in page:
+        for x in page.getchildren():
             region = x.tag.split("}")[-1]
-            regions.append(region)
             if region not in PageXMLRegionType.get_region_types():
                 logger.warning("{} Not defined. Skipping Region Type".format(region))
-        for region in regions:
-            for child in root.findall('.//pcgts:' + region, namespaces):
-                if setting.MASK_TYPE == setting.MASK_TYPE.TEXT_NONTEXT or setting.MASK_TYPE == \
-                        setting.MASK_TYPE.ALLTYPES:
-                    coords = child.find('pcgts:Coords', namespaces)
-                    if coords is not None:
-                        polyline = string_to_lp(coords.get('points'))
-                        xml_type = child.get('type')
-                        region_by_types.append(RegionType(polygon=polyline,
-                                                          region=region,
-                                                          r_type=xml_type))
+            #print(region)
+                #print(child)
+            if setting.MASK_TYPE == setting.MASK_TYPE.TEXT_NONTEXT or setting.MASK_TYPE == \
+                    setting.MASK_TYPE.ALLTYPES:
+                coords = x.find('pcgts:Coords', namespaces)
+                if coords is not None:
+                    polyline = string_to_lp(coords.get('points'))
+                    xml_type = x.get('type')
+                    region_by_types.append(RegionType(polygon=polyline,
+                                                      region=region,
+                                                      r_type=xml_type))
 
-                if setting.MASK_TYPE == setting.MASK_TYPE.TEXT_LINE:
-                    for textline in child.findall('pcgts:TextLine', namespaces):
-                        if textline is not None:
-                            coords = textline.find('pcgts:Coords', namespaces)
-                            if coords is not None:
-                                polyline = string_to_lp(coords.get('points'))
-                                xml_type = child.get('type')
-                                region_by_types.append(RegionType(polygon=polyline,
-                                                                  region=region,
-                                                                  r_type=xml_type))
+            if setting.MASK_TYPE == setting.MASK_TYPE.TEXT_LINE:
+                for textline in x.findall('pcgts:TextLine', namespaces):
+                    if textline is not None:
+                        coords = textline.find('pcgts:Coords', namespaces)
+                        if coords is not None:
+                            polyline = string_to_lp(coords.get('points'))
+                            xml_type = x.get('type')
+                            region_by_types.append(RegionType(polygon=polyline,
+                                                              region=region,
+                                                              r_type=xml_type))
 
-                if setting.MASK_TYPE == setting.MASK_TYPE.BASE_LINE:
-                    for textline in child.findall('pcgts:TextLine', namespaces):
-                        if textline is not None:
-                            baseline = textline.find('pcgts:Baseline', namespaces)
-                            if baseline is not None:
-                                polyline = string_to_lp(baseline.get('points'))
-                                xml_type = child.get('type')
-                                region_by_types.append(RegionType(polygon=polyline,
-                                                                  region=region,
-                                                                  r_type=xml_type))
+            if setting.MASK_TYPE == setting.MASK_TYPE.BASE_LINE:
+                for textline in x.findall('pcgts:TextLine', namespaces):
+                    if textline is not None:
+                        baseline = textline.find('pcgts:Baseline', namespaces)
+                        if baseline is not None:
+                            polyline = string_to_lp(baseline.get('points'))
+                            xml_type = x.get('type')
+                            region_by_types.append(RegionType(polygon=polyline,
+                                                              region=region,
+                                                              r_type=xml_type))
         return PageRegions(image_size=(int(page_height), int(page_width)), xml_regions=region_by_types, filename=f_name)
 
 
@@ -212,13 +210,19 @@ def page_region_to_mask(page_region: PageRegions, setting: MaskSetting, scale: f
                 if setting.BASELINELENGTH != 0:
                     from math import sqrt
 
-                    def getPoint(p1, p2, length=20):
+                    def getPoint(p1, p2, length=20, max_width=None, max_height=None, lw=5):
                         x1, y1 = p1
                         x2, y2 = p2
 
                         x3 = x2 - x1
                         y3 = y2 - y1
-
+                        lw = lw + 1
+                        if x2 > x1:
+                            if max_width > x2 + lw / 2:
+                                x2 = x2 + lw / 2
+                        if x2 < x1:
+                            if 0 < x2 - lw / 2:
+                                x2 = x2 - lw / 2
                         mag = sqrt(x3 * x3 + y3 * y3)
                         x3 = x3 / mag
                         y3 = y3 / mag
@@ -236,8 +240,8 @@ def page_region_to_mask(page_region: PageRegions, setting: MaskSetting, scale: f
                         return (xl1, yl1), (xl2, yl2)
 
                     start, end = polygon[0], polygon[-1]
-                    l1 = getPoint(polygon[-2], end, setting.BASELINELENGTH)
-                    l2 = getPoint(polygon[1], start, setting.BASELINELENGTH)
+                    l1 = getPoint(start, end, setting.BASELINELENGTH, max_width=width, max_height=height,lw=setting.LINEWIDTH)
+                    l2 = getPoint(end, start, setting.BASELINELENGTH, max_width=width, max_height=height, lw=setting.LINEWIDTH)
 
                     ImageDraw.Draw(pil_image).line(l1,
                                                    fill=PageXMLRegionType("GraphicRegion").
